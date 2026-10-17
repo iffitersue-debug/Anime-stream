@@ -1,24 +1,159 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Anime Realm</title>
-  <style>
-    body {
-      background: #101014;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 40px 20px;
-    }
-    h1 { color: #a78bfa; }
-    p { color: #ccc; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anime Realm</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0b12;color:#fff;font-family:Arial,sans-serif}
+header{padding:20px 16px;background:#14141f;position:sticky;top:0;z-index:5}
+.logo{font-size:25px;font-weight:bold;color:#a78bfa}
+.logo span{color:#fff}
+header p{color:#aaa;font-size:12px;margin:6px 0 15px}
+.search{display:flex;gap:8px}
+input{min-width:0;flex:1;padding:13px;border-radius:9px;border:1px solid #343444;background:#20202d;color:white;font-size:15px}
+button{background:#8b5cf6;color:white;border:0;border-radius:9px;padding:12px;cursor:pointer}
+main{padding:18px 14px}
+h2{font-size:19px;margin:12px 0 16px}
+#status{color:#aaa;font-size:14px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{min-width:0;cursor:pointer}
+.card img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:#222}
+.card h3{font-size:14px;line-height:1.4;margin:8px 0 4px}
+.card p{font-size:12px;color:#aaa;margin:4px 0}
+.tag{display:inline-block;background:#272039;color:#c4b5fd;padding:5px 8px;border-radius:5px;font-size:11px}
+#details{display:none;background:#171722;border-radius:12px;padding:16px;margin-bottom:22px}
+#details img{width:110px;float:left;margin:0 14px 10px 0;border-radius:8px}
+#details p{font-size:13px;line-height:1.6;color:#ccc}
+#details:after{content:"";display:block;clear:both}
+footer{text-align:center;color:#777;font-size:12px;padding:28px}
+</style>
 </head>
 <body>
-  <h1>Anime Stream</h1>
-  <p>Your anime destination starts here.</p>
-  <p>Discover anime, explore episodes, and watch legally available content.</p>
+<header>
+  <div class="logo">ANIME <span>REALM</span></div>
+  <p>Discover your next favourite anime.</p>
+  <form class="search" id="searchForm">
+    <input id="search" placeholder="Search anime..." autocomplete="off">
+    <button type="submit">Search</button>
+  </form>
+</header>
+<main>
+  <section id="details">
+    <button onclick="closeDetails()">← Back to anime</button>
+    <div id="detailContent"></div>
+  </section>
+  <h2 id="heading">🔥 Trending Anime</h2>
+  <div id="status">Loading anime...</div>
+  <div class="grid" id="animeGrid"></div>
+  <button id="more" style="display:none;width:100%;margin-top:22px"
+  onclick="loadMore()">Load more anime</button>
+</main>
+<footer>Anime Realm · Anime information powered by AniList</footer>
+<script>
+const API="https://graphql.anilist.co";
+const grid=document.getElementById("animeGrid");
+const status=document.getElementById("status");
+let page=1,term="",busy=false;
+
+async function loadAnime(reset=true){
+ if(busy)return;
+ busy=true;
+ if(reset){page=1;grid.innerHTML="";}
+ status.textContent="Loading anime...";
+ document.getElementById("more").style.display="none";
+ const query=`
+ query($page:Int,$search:String){
+ Page(page:$page,perPage:20){
+ media(type:ANIME,search:$search,sort:POPULARITY_DESC){
+ id title{romaji english} coverImage{large}
+ averageScore episodes seasonYear
+ genres description(asHtml:false)
+ }
+ }
+ }`;
+ try{
+ const response=await fetch(API,{
+ method:"POST",
+ headers:{"Content-Type":"application/json","Accept":"application/json"},
+ body:JSON.stringify({query,variables:{page,search:term||null}})
+ });
+ if(!response.ok)throw Error("Request failed");
+ const data=await response.json();
+ const items=data.data.Page.media;
+ if(reset&&items.length===0){
+ status.textContent="No anime found. Try another title.";
+ }else{
+ status.textContent="";
+ items.forEach(a=>{
+ const card=document.createElement("article");
+ card.className="card";
+ const img=document.createElement("img");
+ img.src=a.coverImage.large;
+ img.alt=a.title.english||a.title.romaji;
+ img.loading="lazy";
+ const title=document.createElement("h3");
+ title.textContent=a.title.english||a.title.romaji;
+ const info=document.createElement("p");
+ info.textContent="⭐ "+(a.averageScore?a.averageScore/10:"N/A")+" · "+(a.episodes||"?")+" episodes";
+ const tag=document.createElement("span");
+ tag.className="tag";
+ tag.textContent=a.seasonYear||"Anime";
+ card.append(img,title,info,tag);
+ card.onclick=()=>showDetails(a);
+ grid.appendChild(card);
+ });
+ if(items.length){
+ document.getElementById("more").style.display="block";
+ page++;
+ }
+ }
+ }catch(e){
+ status.textContent="Couldn't load anime. Check your internet and try again.";
+ }
+ busy=false;
+}
+function showDetails(a){
+ document.getElementById("details").style.display="block";
+ const box=document.getElementById("detailContent");
+ box.innerHTML="";
+ const img=document.createElement("img");
+ img.src=a.coverImage.large;
+ img.alt="";
+ const title=document.createElement("h2");
+ title.textContent=a.title.english||a.title.romaji;
+ const info=document.createElement("p");
+ info.textContent="⭐ "+(a.averageScore?a.averageScore/10:"N/A")+" · "+(a.episodes||"Unknown")+" episodes · "+(a.seasonYear||"Year unknown");
+ const genres=document.createElement("p");
+ genres.textContent=(a.genres||[]).join(" · ");
+ const description=document.createElement("p");
+ description.textContent=(a.description||"No description available.").replace(/<[^>]*>/g,"");
+ const note=document.createElement("p");
+ note.textContent="Episode information is shown for discovery. Watch through an authorised streaming service.";
+ const link=document.createElement("a");
+ link.href="https://www.google.com/search?q="+encodeURIComponent((a.title.english||a.title.romaji)+" official anime streaming");
+ link.target="_blank";
+ link.rel="noopener";
+ link.textContent="Find official watch options ↗";
+ link.style.color="#c4b5fd";
+ box.append(img,title,info,genres,description,note,link);
+ document.getElementById("details").scrollIntoView({behavior:"smooth"});
+}
+function closeDetails(){
+ document.getElementById("details").style.display="none";
+}
+function loadMore(){loadAnime(false)}
+document.getElementById("searchForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ term=document.getElementById("search").value.trim();
+ document.getElementById("heading").textContent=term?"🔎 Search Results":"🔥 Trending Anime";
+ closeDetails();
+ loadAnime(true);
+});
+loadAnime();
+</script>
 </body>
 </html>
+
